@@ -308,8 +308,8 @@ else:
     # If not running, show last results if any
     st.subheader("Biểu đồ 1: Contour và quỹ đạo các thuật toán (k=2)")
     if k == 2 and len(selected_opts) > 0 and any("weights_hist" in st.session_state.cmp_state.get(name, {}) for name in selected_opts):
-        w1 = np.linspace(-2.0, 2.0, 50)
-        w2 = np.linspace(-2.0, 2.0, 50)
+        w1 = np.linspace(-2.0, 2.0, 20)
+        w2 = np.linspace(-2.0, 2.0, 20)
         W1, W2 = np.meshgrid(w1, w2)
         Z = np.zeros_like(W1)
         for i in range(W1.shape[0]):

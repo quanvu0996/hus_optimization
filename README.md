@@ -1,6 +1,6 @@
 # Portfolio Optimization Demo (Streamlit)
 
-## C 11b 6rai
+## Cai dat moi truong
 
 ```bash
 python3 -m venv .venv
@@ -8,13 +8,13 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-## Ch a y app
+## Chay app
 
 ```bash
 streamlit run app.py
 ```
 
-## D f 6 lieu dau vao
+## Du lieu dau vao
 - File CSV `df_return` dang n x m, moi cot la loi nhuan cua 1 co phieu, moi dong la 1 ngay.
 - Neu khong upload, app se sinh du lieu gia lap.
 
@@ -32,7 +32,7 @@ streamlit run app.py
 
 # So sanh thuat toan (app2.py)
 
-Ch a y app so s anh:
+Chay app so sanh cac thuat toan:
 
 ```bash
 streamlit run app2.py
