@@ -14,6 +14,28 @@ def compute_statistics(df_returns: pd.DataFrame, weights: np.ndarray):
     port_std = float(np.sqrt(max(port_var, 1e-16)))
     return mu, Sigma, port_mean, port_std, port_var
 
+class Markowitz:
+    def __init__(self, df_returns: pd.DataFrame, lam: float = 1.0):
+        self.df_returns = df_returns
+        self.lam = lam
+
+        # Means per asset
+        self.mu = df_returns.mean(axis=0).values  # shape (k,)
+        # Covariance matrix
+        self.Sigma = np.cov(df_returns.values, rowvar=False)  # shape (k,k)
+    
+    def get_objective(self, weights: np.ndarray):
+        port_mean = float(self.mu @ weights)
+        value = -port_mean + self.lam * float(weights @ self.Sigma @ weights)
+        return value
+    
+    def get_gradient(self, weights: np.ndarray):
+        grad = -self.mu + 2.0 * self.lam * (self.Sigma @ weights)
+        return grad
+
+    def get_hessian(self, weights: np.ndarray):
+        hess = 2.0 * self.lam * self.Sigma
+        return hess
 
 def objective_markowitz(df_returns: pd.DataFrame, weights: np.ndarray, lam: float = 1.0):
     """Minimize: -mu^T w + lam * w^T Sigma w  (i.e., trade-off return vs variance)"""
