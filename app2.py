@@ -70,7 +70,7 @@ all_opts = [
     "Adam",
     "Adagrad",
 ]
-selected_opts = st.sidebar.multiselect("Chọn thuật toán để so sánh", all_opts, default=["GD", "Adam", "Nesterov accelerated"])
+selected_opts = st.sidebar.multiselect("Chọn thuật toán để so sánh", all_opts, default=["GD", "Adam", "Newton"])
 
 # Prepare objective function
 if objective_name.startswith("Markowitz"):
@@ -81,16 +81,22 @@ else:
         return objective_sharpe(DF, W, r_f=r_f)
 
 # Initialize session state for comparison
-if "cmp_state" not in st.session_state or st.sidebar.button("Khởi tạo lại state"):
+# if "cmp_state" not in st.session_state or st.sidebar.button("Khởi tạo lại state"):
+#     st.session_state.cmp_state = {}
+
+# Create shared initial weights for fair comparison
+if "shared_initial_weights" not in st.session_state or len(st.session_state.shared_initial_weights) != k or st.sidebar.button("Reset weights chung"):
+    st.session_state.shared_initial_weights = rng.normal(size=k)
+    # Clear all optimizer states when resetting weights
     st.session_state.cmp_state = {}
 
 # Create per-optimizer states - ensure weights match current k
 opt_configs = {}
 for name in selected_opts:
     state = st.session_state.cmp_state.get(name, {})
-    # Check if weights need to be resized
+    # Check if weights need to be resized or reset
     if "w" not in state or len(state["w"]) != k:
-        state["w"] = rng.normal(size=k)
+        state["w"] = st.session_state.shared_initial_weights.copy()
         state["weights_hist"] = [state["w"].copy()]
         state["obj_hist"] = []
         state["time_hist"] = []
@@ -208,6 +214,9 @@ if run:
                 z, _, _ = objective_fn(df, ww)
                 Z[i, j] = z
 
+    # Create consistent color mapping for all charts
+    color_map = {name: plt.cm.tab10(i/len(selected_opts)) for i, name in enumerate(selected_opts)}
+    
     # Main refresh loop: update charts every 0.5s until all threads complete
     max_wait_time = 60  # Maximum 60 seconds
     start_wait = time.perf_counter()
@@ -228,8 +237,8 @@ if run:
                     ax.set_xlabel(f"Trọng số {short_list[0]}")
                     ax.set_ylabel(f"Trọng số {short_list[1]}")
                     ax.set_title("Mặt đồng mức + quỹ đạo")
-                    colors = plt.cm.tab10(np.linspace(0, 1, len(selected_opts) or 1))
-                    for color, name in zip(colors, selected_opts):
+                    for name in selected_opts:
+                        color = color_map[name]
                         with locks[name]:
                             hist = np.array(opt_configs[name]["weights_hist"], dtype=float)
                         if hist.ndim == 2 and hist.shape[1] == 2 and len(hist) > 0:
@@ -237,32 +246,33 @@ if run:
                             ax.scatter(hist[-1, 0], hist[-1, 1], color=color, s=50)
                     ax.legend()
                     contour_placeholder.pyplot(fig)
+                    plt.close(fig)  # Close figure to prevent memory leak
                 else:
                     contour_placeholder.info("Contour chỉ khả dụng khi chọn đúng 2 cổ phiếu.")
 
-                # iteration chart (always show)
-                with pd.option_context('mode.copy_on_write', True):
-                    # Ensure all arrays have the same length by padding with NaN
-                    max_len = max(len(opt_configs[name]["obj_hist"]) for name in selected_opts) if selected_opts else 0
-                    if max_len > 0:
-                        data_dict = {}
-                        for name in selected_opts:
-                            hist = opt_configs[name]["obj_hist"]
-                            if len(hist) < max_len:
-                                # Pad with NaN to match max length
-                                padded_hist = hist + [np.nan] * (max_len - len(hist))
-                            else:
-                                padded_hist = hist
-                            data_dict[name] = padded_hist
-                        df_iter = pd.DataFrame(data_dict)
-                        df_iter.index.name = "iteration"
-                        iter_placeholder.line_chart(df_iter)
+                # iteration chart (always show) - use consistent colors
+                fig_iter, ax_iter = plt.subplots(figsize=(6, 4))
+                has_data_iter = False
+                for name in selected_opts:
+                    color = color_map[name]
+                    with locks[name]:
+                        obj_hist = np.array(opt_configs[name]["obj_hist"]) if len(opt_configs[name]["obj_hist"]) > 0 else np.array([np.nan])
+                    if len(obj_hist) > 0 and not np.all(np.isnan(obj_hist)):
+                        iterations = np.arange(len(obj_hist))
+                        ax_iter.plot(iterations, obj_hist, color=color, label=name, linewidth=2)
+                        has_data_iter = True
+                ax_iter.set_xlabel("Iteration")
+                ax_iter.set_ylabel("Objective")
+                if has_data_iter:
+                    ax_iter.legend()
+                iter_placeholder.pyplot(fig_iter)
+                plt.close(fig_iter)  # Close figure to prevent memory leak
 
-                # time chart (always show)
+                # time chart (always show) - use consistent colors
                 fig2, ax2 = plt.subplots(figsize=(6, 4))
-                colors = plt.cm.tab10(np.linspace(0, 1, len(selected_opts) or 1))
                 has_data = False
-                for color, name in zip(colors, selected_opts):
+                for name in selected_opts:
+                    color = color_map[name]
                     with locks[name]:
                         t_hist = np.array(opt_configs[name]["time_hist"]) if len(opt_configs[name]["time_hist"]) > 0 else np.array([0.0])
                         y_hist = np.array(opt_configs[name]["obj_hist"]) if len(opt_configs[name]["obj_hist"]) > 0 else np.array([np.nan])
@@ -274,6 +284,7 @@ if run:
                 if has_data:
                     ax2.legend()
                 time_placeholder.pyplot(fig2)
+                plt.close(fig2)  # Close figure to prevent memory leak
                 
                 last_update = current_time
                 
