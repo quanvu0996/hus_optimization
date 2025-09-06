@@ -49,6 +49,8 @@ if len(short_list) == 0:
 
 k = len(short_list)
 df = df_all[short_list]
+mu = df.mean(axis=0).values  # shape (k,)
+Sigma = np.cov(df.values, rowvar=False)  # shape (k,k)
 
 # Objective selection
 objective_name = st.sidebar.selectbox("Hàm mục tiêu", ["Markowitz (mean-variance)", "Sharpe ratio"])
@@ -69,13 +71,21 @@ opt_name = st.sidebar.selectbox(
     ],
 )
 
+
 # Hyperparameters
 lr = st.sidebar.number_input("Learning rate", value=0.1, step=0.01)
 batch_size = st.sidebar.number_input("Kích thước batch (cho mini-batch/SGD)", value=16, step=1, min_value=1)
 
+inp_ws = st.sidebar.text_input("Initial weights (comma-separated)", value="")
+    
+
 # State initialization - ensure weights match current k
-if "weights" not in st.session_state or len(st.session_state.weights) != k or st.sidebar.button("Khởi tạo lại trọng số"):
-    st.session_state.weights = rng.normal(size=k)
+reset = st.sidebar.button("Khởi tạo lại trọng số")
+if "weights" not in st.session_state or len(st.session_state.weights) != k or reset:
+    if inp_ws !="": 
+        st.session_state.weights = np.array(list(map(float, inp_ws.split(","))))
+    else:
+        st.session_state.weights = rng.normal(size=k)
 
 if "momentum_state" not in st.session_state:
     st.session_state.momentum_state = {}
@@ -106,11 +116,11 @@ if "hist_k" not in st.session_state or st.session_state.get("hist_k") != k or "w
 col1, col2 = st.columns([1, 1])
 with col1:
     run = st.button("RUN_STEP")
-with col2:
-    reset = st.button("Reset về ngẫu nhiên")
+# with col2:
+#     reset = st.button("Reset về ngẫu nhiên")
 
 if reset:
-    st.session_state.weights = rng.normal(size=k)
+    # st.session_state.weights = rng.normal(size=k)
     # reset histories
     w0 = st.session_state.weights.astype(float)
     v0, _, _ = objective_fn(df, w0)
@@ -119,6 +129,7 @@ if reset:
     st.session_state.objective_history = [float(v0)]
     # st.experimental_rerun()
 
+w_new, value = None, None
 if run:
     if opt_name == "GD":
         w_new, value, grad = optimizer_gd(df, w, lr, objective_fn)
@@ -143,26 +154,27 @@ if run:
     st.session_state.weight_history.append(w_new.copy())
     st.session_state.objective_history.append(float(value))
 
-    st.success(f"Step done. Objective: {value:.6f}")
-    st.subheader("Trạng thái hiện tại")
-    st.write({"weights": w_new, "objective": float(value)})
+    # st.success(f"Step done. Objective: {value:.6f}")
 
 # Plot contour for 2-asset case and objective history side by side
-if k == 2:
-    # Create two columns for the charts
-    chart_col1, chart_col2 = st.columns([1, 1])
-    
-    with chart_col1:
-        st.subheader("Lịch sử giá trị hàm mục tiêu")
-        if "objective_history" in st.session_state and len(st.session_state.objective_history) > 0:
-            st.line_chart(pd.DataFrame({"objective": st.session_state.objective_history}))
-        else:
-            st.write("Chưa có lịch sử. Hãy nhấn RUN_STEP để bắt đầu.")
-    
-    with chart_col2:
+# if k == 2:
+# Create two columns for the charts
+chart_col1, chart_col2 = st.columns([1, 1])
+
+with chart_col1:
+    st.subheader("Lịch sử giá trị hàm mục tiêu")
+    if "objective_history" in st.session_state and len(st.session_state.objective_history) > 0:
+        st.line_chart(pd.DataFrame({"objective": st.session_state.objective_history}))
+    else:
+        st.write("Chưa có lịch sử. Hãy nhấn RUN_STEP để bắt đầu.")
+    chart_col1.subheader("Trạng thái hiện tại")
+    chart_col1.write({"weights": w_new, "objective": value, "mu": mu, "Sigma":Sigma})
+
+with chart_col2:
+    if k==2:
         st.subheader("Contour của hàm mục tiêu (2 tài sản)")
-        w1 = np.linspace(-2.0, 2.0, 10)
-        w2 = np.linspace(-2.0, 2.0, 10)
+        w1 = np.linspace(-3.0, 3.0, 10)
+        w2 = np.linspace(-3.0, 3.0, 10)
         W1, W2 = np.meshgrid(w1, w2)
 
         Z = np.zeros_like(W1)
@@ -191,11 +203,15 @@ if k == 2:
             ax.scatter([curr[0]], [curr[1]], color="red", s=60, label="Current w")
         ax.legend()
         st.pyplot(fig)
+    else:
+        chart_col2.info("Contour chỉ khả dụng khi chọn đúng 2 cổ phiếu.")
 
-else:
-    # For k≠2, show only objective history chart
-    if "objective_history" in st.session_state and len(st.session_state.objective_history) > 0:
-        st.subheader("Lịch sử giá trị hàm mục tiêu")
-        st.line_chart(pd.DataFrame({"objective": st.session_state.objective_history}))
+# else:
+#     # For k≠2, show only objective history chart
+#     if "objective_history" in st.session_state and len(st.session_state.objective_history) > 0:
+#         st.subheader("Lịch sử giá trị hàm mục tiêu")
+#         st.line_chart(pd.DataFrame({"objective": st.session_state.objective_history}))
+
+bottom_row = st.container()
 
 st.caption("Lưu ý: Bài toán không ràng buộc, trọng số có thể âm (bán khống) hoặc >1 (đòn bẩy).")
