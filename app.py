@@ -3,124 +3,14 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
+# Import utility functions
+from utils.data_processing import objective_markowitz, objective_sharpe
+from utils.optimization import (
+    optimizer_gd, optimizer_sgd, optimizer_minibatch_gd, optimizer_newton,
+    optimizer_nesterov, optimizer_adam, optimizer_adagrad
+)
+
 st.set_page_config(page_title="Portfolio Optimization Demo", layout="wide")
-
-# ---------------------------
-# Utilities: objectives & grads
-# ---------------------------
-
-def compute_statistics(df_returns: pd.DataFrame, weights: np.ndarray):
-    # Return mean and covariance for selected assets and the current weights
-    # Means per asset
-    mu = df_returns.mean(axis=0).values  # shape (k,)
-    # Covariance matrix
-    Sigma = np.cov(df_returns.values, rowvar=False)  # shape (k,k)
-    # Portfolio stats
-    port_mean = float(mu @ weights)
-    port_var = float(weights @ Sigma @ weights)
-    port_std = float(np.sqrt(max(port_var, 1e-16)))
-    return mu, Sigma, port_mean, port_std, port_var
-
-
-def objective_markowitz(df_returns: pd.DataFrame, weights: np.ndarray, lam: float = 1.0):
-    # Minimize: -mu^T w + lam * w^T Sigma w  (i.e., trade-off return vs variance)
-    mu, Sigma, port_mean, _, _ = compute_statistics(df_returns, weights)
-    value = -port_mean + lam * float(weights @ Sigma @ weights)
-    # Gradient: -mu + 2*lam*Sigma w
-    grad = -mu + 2.0 * lam * (Sigma @ weights)
-    # Hessian: 2*lam*Sigma
-    hess = 2.0 * lam * Sigma
-    return value, grad, hess
-
-
-def objective_sharpe(df_returns: pd.DataFrame, weights: np.ndarray, r_f: float = 0.0, eps: float = 1e-6):
-    # Maximize Sharpe = (mu_p - r_f) / sigma_p -> Minimize negative Sharpe: -(mu_p - r_f) / sigma_p
-    # We return value and gradient for minimization
-    mu, Sigma, port_mean, port_std, _ = compute_statistics(df_returns, weights)
-    # Handle degenerate std
-    denom = max(port_std, eps)
-    excess_return = port_mean - r_f
-    value = -excess_return / denom
-
-    # Gradient of -(mu-r_f)/σ: -(mu' * σ - (mu-r_f) * σ') / σ^2
-    # mu' = mu vector; σ' = (Sigma w)/σ
-    Sigma_w = Sigma @ weights
-    grad = -(mu * denom - excess_return * (Sigma_w / denom)) / (denom ** 2)
-    # Hessian is complicated; use an approximation (identity scaled) for Newton fallback
-    hess = None
-    return value, grad, hess
-
-
-# ---------------------------
-# Optimizers
-# ---------------------------
-
-def take_gradient_step(weights, grad, lr):
-    return weights - lr * grad
-
-
-def optimizer_gd(df, w, lr, objective_fn, **obj_kwargs):
-    value, grad, _ = objective_fn(df, w, **obj_kwargs)
-    w_new = take_gradient_step(w, grad, lr)
-    return w_new, value, grad
-
-
-def optimizer_sgd(df, w, lr, objective_fn, batch_size=1, rng=None, **obj_kwargs):
-    if rng is None:
-        rng = np.random.default_rng()
-    # Sample random rows (days)
-    n = len(df)
-    idx = rng.choice(n, size=min(batch_size, n), replace=False)
-    df_batch = df.iloc[idx]
-    value, grad, _ = objective_fn(df_batch, w, **obj_kwargs)
-    w_new = take_gradient_step(w, grad, lr)
-    return w_new, value, grad
-
-
-def optimizer_minibatch_gd(df, w, lr, objective_fn, batch_size=16, rng=None, **obj_kwargs):
-    return optimizer_sgd(df, w, lr, objective_fn, batch_size=batch_size, rng=rng, **obj_kwargs)
-
-
-def optimizer_newton(df, w, lr, objective_fn, **obj_kwargs):
-    value, grad, hess = objective_fn(df, w, **obj_kwargs)
-    if hess is None:
-        # Fallback to GD if Hessian not available
-        w_new = take_gradient_step(w, grad, lr)
-        return w_new, value, grad
-    # Regularize Hessian to ensure invertibility
-    reg = 1e-6
-    hess_reg = hess + reg * np.eye(len(w))
-    try:
-        step_dir = np.linalg.solve(hess_reg, grad)
-    except np.linalg.LinAlgError:
-        step_dir = grad
-    w_new = w - lr * step_dir
-    return w_new, value, grad
-
-
-def optimizer_nesterov(df, w, lr, objective_fn, momentum_state, momentum=0.9, **obj_kwargs):
-    v_prev = momentum_state.get("v", np.zeros_like(w))
-    lookahead_w = w - momentum * v_prev
-    value, grad, _ = objective_fn(df, lookahead_w, **obj_kwargs)
-    v = momentum * v_prev + lr * grad
-    w_new = w - v
-    momentum_state["v"] = v
-    return w_new, value, grad
-
-
-def optimizer_adam(df, w, lr, objective_fn, adam_state, beta1=0.9, beta2=0.999, eps=1e-8, t=1, **obj_kwargs):
-    m = adam_state.get("m", np.zeros_like(w))
-    v = adam_state.get("v", np.zeros_like(w))
-    value, grad, _ = objective_fn(df, w, **obj_kwargs)
-    m = beta1 * m + (1 - beta1) * grad
-    v = beta2 * v + (1 - beta2) * (grad ** 2)
-    m_hat = m / (1 - beta1 ** t)
-    v_hat = v / (1 - beta2 ** t)
-    w_new = w - lr * m_hat / (np.sqrt(v_hat) + eps)
-    adam_state["m"] = m
-    adam_state["v"] = v
-    adam_state["t"] = t
-    return w_new, value, grad
 
 
 # ---------------------------
@@ -140,8 +30,9 @@ uploaded = st.sidebar.file_uploader("Upload CSV df_return (n x m)", type=["csv"]
 if uploaded is not None:
     df_all = pd.read_csv(uploaded)
 else:
-    # synthetic data: 500 days x 6 assets
-    n_days, m_assets = 500, 6
+    # synthetic data: user can specify number of days and assets
+    n_days = st.sidebar.number_input("Số ngày (n_days)", value=500, min_value=100, step=50)
+    m_assets = st.sidebar.number_input("Số tài sản (m_assets)", value=10, min_value=2, step=1)
     # create random correlated returns
     A = rng.normal(size=(m_assets, m_assets))
     cov = A @ A.T / m_assets
@@ -152,9 +43,9 @@ else:
 assets = list(df_all.columns)
 short_list = st.sidebar.multiselect("Chọn short-list cổ phiếu", assets, default=assets[:2])
 
-if len(short_list) < 1:
-    st.warning("Chọn ít nhất 1 cổ phiếu trong short-list.")
-    st.stop()
+# If no assets selected, use all assets
+if len(short_list) == 0:
+    short_list = assets
 
 k = len(short_list)
 df = df_all[short_list]
@@ -174,6 +65,7 @@ opt_name = st.sidebar.selectbox(
         "Newton",
         "Nesterov accelerated",
         "Adam",
+        "Adagrad",
     ],
 )
 
@@ -181,14 +73,16 @@ opt_name = st.sidebar.selectbox(
 lr = st.sidebar.number_input("Learning rate", value=0.1, step=0.01)
 batch_size = st.sidebar.number_input("Kích thước batch (cho mini-batch/SGD)", value=16, step=1, min_value=1)
 
-# State initialization
-if "weights" not in st.session_state or st.sidebar.button("Khởi tạo lại trọng số"):
+# State initialization - ensure weights match current k
+if "weights" not in st.session_state or len(st.session_state.weights) != k or st.sidebar.button("Khởi tạo lại trọng số"):
     st.session_state.weights = rng.normal(size=k)
 
 if "momentum_state" not in st.session_state:
     st.session_state.momentum_state = {}
 if "adam_state" not in st.session_state:
     st.session_state.adam_state = {"t": 0}
+if "adagrad_state" not in st.session_state:
+    st.session_state.adagrad_state = {}
 
 # Choose objective function
 if objective_name.startswith("Markowitz"):
@@ -206,8 +100,8 @@ if "hist_k" not in st.session_state or st.session_state.get("hist_k") != k or "w
     st.session_state.weight_history = [w.copy()]
     st.session_state.objective_history = [float(val)]
 
-st.subheader("Trạng thái hiện tại")
-st.write({"weights": w, "objective": float(val)})
+# st.subheader("Trạng thái hiện tại")
+# st.write({"weights": w, "objective": float(val)})
 
 col1, col2 = st.columns([1, 1])
 with col1:
@@ -239,6 +133,8 @@ if run:
     elif opt_name == "Adam":
         st.session_state.adam_state["t"] = int(st.session_state.adam_state.get("t", 0)) + 1
         w_new, value, grad = optimizer_adam(df, w, lr, objective_fn, st.session_state.adam_state, t=st.session_state.adam_state["t"]) 
+    elif opt_name == "Adagrad":
+        w_new, value, grad = optimizer_adagrad(df, w, lr, objective_fn, st.session_state.adagrad_state)
     else:
         st.stop()
 
@@ -248,6 +144,7 @@ if run:
     st.session_state.objective_history.append(float(value))
 
     st.success(f"Step done. Objective: {value:.6f}")
+    st.subheader("Trạng thái hiện tại")
     st.write({"weights": w_new, "objective": float(value)})
 
 # Plot contour for 2-asset case and objective history side by side
