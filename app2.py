@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import threading
 
 # Import utility functions
-from utils.data_processing import objective_markowitz, objective_sharpe
+from utils.data_processing import objective_markowitz, objective_sharpe, Markowitz
 from utils.optimization import (
     opt_step_gd, opt_step_sgd, opt_step_minibatch, opt_step_newton,
     opt_step_nesterov, opt_step_adam, opt_step_adagrad
@@ -73,6 +73,8 @@ all_opts = [
 selected_opts = st.sidebar.multiselect("Chọn thuật toán để so sánh", all_opts, default=["GD", "Adam", "Newton"])
 
 # Prepare objective function
+markowitz = Markowitz(df, lam=lam)
+
 if objective_name.startswith("Markowitz"):
     def objective_fn(DF, W):
         return objective_markowitz(DF, W, lam=lam)
@@ -186,6 +188,8 @@ if run:
                         w_new, obj_val = opt_step_adagrad(df, w, lr, objective_fn, state)
                     else:
                         break
+
+                    obj_val = markowitz.get_objective(w_new)
 
                     with locks[name]:
                         state["w"] = w_new
