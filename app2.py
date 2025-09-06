@@ -90,6 +90,11 @@ if "shared_initial_weights" not in st.session_state or len(st.session_state.shar
     # Clear all optimizer states when resetting weights
     st.session_state.cmp_state = {}
 
+inp_ws = st.sidebar.text_input("Initial weights (comma-separated)", value="")
+if inp_ws !="": 
+    st.session_state.shared_initial_weights = np.array(list(map(float, inp_ws.split(","))))
+    st.session_state.cmp_state = {}
+
 # Create per-optimizer states - ensure weights match current k
 opt_configs = {}
 for name in selected_opts:
