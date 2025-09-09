@@ -44,3 +44,11 @@ streamlit run app2.py
 - Bieu do 1: Contour + quy dao (k=2).
 - Bieu do 2: Objective theo iteration.
 - Bieu do 3: Objective theo thoi gian (giay).
+
+---
+
+# Đánh giá trên bộ dữ liệu Test
+
+```bash
+streamlit run app3.py
+```
