@@ -1,7 +1,3 @@
-"""
-Compare giữa các thuật toán
-"""
-
 import time
 import streamlit as st
 import numpy as np
@@ -16,7 +12,7 @@ warnings.filterwarnings('ignore')
 from utils.data_processing import objective_markowitz, objective_sharpe
 from utils.optimization import (
     optimizer_gd, optimizer_sgd, optimizer_minibatch_gd, optimizer_newton,
-    optimizer_nesterov, optimizer_adam, optimizer_adagrad,
+    optimizer_nesterov, optimizer_adam, optimizer_adagrad, optimizer_gd_backtracking,
     optimizer_torch_adam, optimizer_torch_adagrad, optimizer_torch_sgd, optimizer_torch_nesterov,
     optimizer_scipy_bfgs, optimizer_scipy_cg, optimizer_scipy_newton_cg, optimizer_scipy_trust_ncg
 )
@@ -71,6 +67,7 @@ tolerance = st.sidebar.number_input("Ngưỡng hội tụ (tolerance)", value=1e
 # Optimizer selection
 all_opts = [
     "GD",
+    "GD with Backtracking",
     "mini-batch GD", 
     "SGD",
     "Newton",
@@ -153,6 +150,8 @@ if run_benchmark:
                     # Run optimizer step
                     if name == "GD":
                         w_new, obj_val, grad = optimizer_gd(df, w, lr, objective_fn)
+                    elif name == "GD with Backtracking":
+                        w_new, obj_val, grad = optimizer_gd_backtracking(df, w, lr, objective_fn)
                     elif name == "mini-batch GD":
                         w_new, obj_val, grad = optimizer_minibatch_gd(df, w, lr, objective_fn, batch_size=int(batch_size), rng=rng)
                     elif name == "SGD":

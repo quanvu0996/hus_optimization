@@ -88,6 +88,31 @@ def optimizer_adagrad(df, w, lr, objective_fn, adagrad_state, eps=1e-8, **obj_kw
     return w_new, value, grad
 
 
+def optimizer_gd_backtracking(df, w, lr, objective_fn, alpha=0.3, beta=0.8, max_backtrack=20, **obj_kwargs):
+    """Gradient Descent with backtracking line search"""
+    value, grad, _ = objective_fn(df, w, **obj_kwargs)
+    
+    # Initial step size
+    step_size = lr
+    
+    # Backtracking line search
+    for _ in range(max_backtrack):
+        w_candidate = w - step_size * grad
+        value_candidate, _, _ = objective_fn(df, w_candidate, **obj_kwargs)
+        
+        # Armijo condition: f(x + α*d) ≤ f(x) + α*∇f(x)^T*d
+        armijo_condition = value_candidate <= value + alpha * step_size * np.dot(grad, -grad)
+        
+        if armijo_condition:
+            break
+        
+        # Reduce step size
+        step_size *= beta
+    
+    w_new = w - step_size * grad
+    return w_new, value, grad
+
+
 # Threaded versions for app2.py
 def opt_step_gd(df, w, lr, objective_fn):
     """Threaded version of GD for app2.py"""
@@ -168,6 +193,31 @@ def opt_step_adagrad(df, w, lr, objective_fn, state):
     G += grad ** 2
     w_new = w - lr * grad / (np.sqrt(G) + eps)
     state["G"] = G
+    return w_new, value
+
+
+def opt_step_gd_backtracking(df, w, lr, objective_fn, alpha=0.3, beta=0.8, max_backtrack=20):
+    """Threaded version of GD with backtracking for app2.py"""
+    value, grad, _ = objective_fn(df, w)
+    
+    # Initial step size
+    step_size = lr
+    
+    # Backtracking line search
+    for _ in range(max_backtrack):
+        w_candidate = w - step_size * grad
+        value_candidate, _, _ = objective_fn(df, w_candidate)
+        
+        # Armijo condition: f(x + α*d) ≤ f(x) + α*∇f(x)^T*d
+        armijo_condition = value_candidate <= value + alpha * step_size * np.dot(grad, -grad)
+        
+        if armijo_condition:
+            break
+        
+        # Reduce step size
+        step_size *= beta
+    
+    w_new = w - step_size * grad
     return w_new, value
 
 

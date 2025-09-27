@@ -9,7 +9,7 @@ import threading
 from utils.data_processing import objective_markowitz, objective_sharpe, Markowitz
 from utils.optimization import (
     opt_step_gd, opt_step_sgd, opt_step_minibatch, opt_step_newton,
-    opt_step_nesterov, opt_step_adam, opt_step_adagrad,
+    opt_step_nesterov, opt_step_adam, opt_step_adagrad, opt_step_gd_backtracking,
     optimizer_torch_adam, optimizer_torch_adagrad, optimizer_torch_sgd, optimizer_torch_nesterov,
     optimizer_scipy_bfgs, optimizer_scipy_cg, optimizer_scipy_newton_cg, optimizer_scipy_trust_ncg
 )
@@ -65,6 +65,7 @@ update_delay = st.sidebar.number_input("Độ trễ cập nhật (giây)", value
 # Optimizer selection
 all_opts = [
     "GD",
+    "GD with Backtracking",
     "mini-batch GD",
     "SGD",
     "Newton",
@@ -186,6 +187,8 @@ if run:
                     w = state["w"].astype(float)
                     if name == "GD":
                         w_new, obj_val = opt_step_gd(df, w, lr, objective_fn)
+                    elif name == "GD with Backtracking":
+                        w_new, obj_val = opt_step_gd_backtracking(df, w, lr, objective_fn)
                     elif name == "mini-batch GD":
                         w_new, obj_val = opt_step_minibatch(df, w, lr, objective_fn, batch_size=int(batch_size), rng=rng)
                     elif name == "SGD":

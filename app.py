@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from utils.data_processing import objective_markowitz, objective_sharpe
 from utils.optimization import (
     optimizer_gd, optimizer_sgd, optimizer_minibatch_gd, optimizer_newton,
-    optimizer_nesterov, optimizer_adam, optimizer_adagrad,
+    optimizer_nesterov, optimizer_adam, optimizer_adagrad, optimizer_gd_backtracking,
     optimizer_torch_adam, optimizer_torch_adagrad, optimizer_torch_sgd, optimizer_torch_nesterov, 
     optimizer_scipy_bfgs,optimizer_scipy_cg, optimizer_scipy_newton_cg, optimizer_scipy_trust_ncg
 )
@@ -64,6 +64,7 @@ opt_name = st.sidebar.selectbox(
     "Thuật toán tối ưu",
     [
         "GD",
+        "GD with Backtracking",
         "mini-batch GD",
         "SGD",
         "Newton",
@@ -85,6 +86,18 @@ opt_name = st.sidebar.selectbox(
 # Hyperparameters
 lr = st.sidebar.number_input("Learning rate", value=0.1, step=0.01)
 batch_size = st.sidebar.number_input("Kích thước batch (cho mini-batch/SGD)", value=16, step=1, min_value=1)
+
+# Backtracking parameters (only shown for GD with Backtracking)
+if opt_name == "GD with Backtracking":
+    st.sidebar.subheader("Backtracking Line Search Parameters")
+    alpha = st.sidebar.number_input("Alpha (Armijo parameter)", value=0.3, step=0.1, min_value=0.01, max_value=0.5)
+    beta = st.sidebar.number_input("Beta (reduction factor)", value=0.8, step=0.1, min_value=0.1, max_value=0.9)
+    max_backtrack = st.sidebar.number_input("Max backtracking steps", value=20, step=5, min_value=5, max_value=50)
+else:
+    # Default values for other optimizers
+    alpha = 0.3
+    beta = 0.8
+    max_backtrack = 20
 
 inp_ws = st.sidebar.text_input("Initial weights (comma-separated)", value="")
     
@@ -145,6 +158,8 @@ w_new, value = None, None
 if run:
     if opt_name == "GD":
         w_new, value, grad = optimizer_gd(df, w, lr, objective_fn)
+    elif opt_name == "GD with Backtracking":
+        w_new, value, grad = optimizer_gd_backtracking(df, w, lr, objective_fn, alpha=alpha, beta=beta, max_backtrack=max_backtrack)
     elif opt_name == "mini-batch GD":
         w_new, value, grad = optimizer_minibatch_gd(df, w, lr, objective_fn, batch_size=int(batch_size), rng=rng)
     elif opt_name == "SGD":
