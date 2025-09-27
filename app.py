@@ -7,7 +7,9 @@ import matplotlib.pyplot as plt
 from utils.data_processing import objective_markowitz, objective_sharpe
 from utils.optimization import (
     optimizer_gd, optimizer_sgd, optimizer_minibatch_gd, optimizer_newton,
-    optimizer_nesterov, optimizer_adam, optimizer_adagrad
+    optimizer_nesterov, optimizer_adam, optimizer_adagrad,
+    optimizer_torch_adam, optimizer_torch_adagrad, optimizer_torch_sgd, optimizer_torch_nesterov, 
+    optimizer_scipy_bfgs,optimizer_scipy_cg, optimizer_scipy_newton_cg, optimizer_scipy_trust_ncg
 )
 
 st.set_page_config(page_title="Portfolio Optimization Demo", layout="wide")
@@ -68,6 +70,14 @@ opt_name = st.sidebar.selectbox(
         "Nesterov accelerated",
         "Adam",
         "Adagrad",
+        "Torch Adam",
+        "Torch Adagrad", 
+        "Torch SGD",
+        "Torch Nesterov",
+        "SciPy BFGS",
+        "SciPy CG",
+        "SciPy Newton-CG",
+        "SciPy Trust-NCG",
     ],
 )
 
@@ -93,6 +103,8 @@ if "adam_state" not in st.session_state:
     st.session_state.adam_state = {"t": 0}
 if "adagrad_state" not in st.session_state:
     st.session_state.adagrad_state = {}
+if "torch_state" not in st.session_state:
+    st.session_state.torch_state = {}
 
 # Choose objective function
 if objective_name.startswith("Markowitz"):
@@ -146,6 +158,22 @@ if run:
         w_new, value, grad = optimizer_adam(df, w, lr, objective_fn, st.session_state.adam_state, t=st.session_state.adam_state["t"]) 
     elif opt_name == "Adagrad":
         w_new, value, grad = optimizer_adagrad(df, w, lr, objective_fn, st.session_state.adagrad_state)
+    elif opt_name == "Torch Adam":
+        w_new, value, grad = optimizer_torch_adam(df, w, lr, objective_fn, st.session_state.torch_state)
+    elif opt_name == "Torch Adagrad":
+        w_new, value, grad = optimizer_torch_adagrad(df, w, lr, objective_fn, st.session_state.torch_state)
+    elif opt_name == "Torch SGD":
+        w_new, value, grad = optimizer_torch_sgd(df, w, lr, objective_fn, st.session_state.torch_state)
+    elif opt_name == "Torch Nesterov":
+        w_new, value, grad = optimizer_torch_nesterov(df, w, lr, objective_fn, st.session_state.torch_state)
+    elif opt_name == "SciPy BFGS":
+        w_new, value, grad = optimizer_scipy_bfgs(df, w, lr, objective_fn)
+    elif opt_name == "SciPy CG":
+        w_new, value, grad = optimizer_scipy_cg(df, w, lr, objective_fn)
+    elif opt_name == "SciPy Newton-CG":
+        w_new, value, grad = optimizer_scipy_newton_cg(df, w, lr, objective_fn)
+    elif opt_name == "SciPy Trust-NCG":
+        w_new, value, grad = optimizer_scipy_trust_ncg(df, w, lr, objective_fn)
     else:
         st.stop()
 

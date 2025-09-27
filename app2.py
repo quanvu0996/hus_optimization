@@ -9,7 +9,9 @@ import threading
 from utils.data_processing import objective_markowitz, objective_sharpe, Markowitz
 from utils.optimization import (
     opt_step_gd, opt_step_sgd, opt_step_minibatch, opt_step_newton,
-    opt_step_nesterov, opt_step_adam, opt_step_adagrad
+    opt_step_nesterov, opt_step_adam, opt_step_adagrad,
+    optimizer_torch_adam, optimizer_torch_adagrad, optimizer_torch_sgd, optimizer_torch_nesterov,
+    optimizer_scipy_bfgs, optimizer_scipy_cg, optimizer_scipy_newton_cg, optimizer_scipy_trust_ncg
 )
 
 st.set_page_config(page_title="Portfolio Optimizer Comparison", layout="wide")
@@ -69,6 +71,14 @@ all_opts = [
     "Nesterov accelerated",
     "Adam",
     "Adagrad",
+    "Torch Adam",
+    "Torch Adagrad",
+    "Torch SGD",
+    "Torch Nesterov",
+    "SciPy BFGS",
+    "SciPy CG",
+    "SciPy Newton-CG",
+    "SciPy Trust-NCG",
 ]
 selected_opts = st.sidebar.multiselect("Chọn thuật toán để so sánh", all_opts, default=["GD", "Adam", "Newton"])
 
@@ -130,6 +140,8 @@ for name in selected_opts:
         if "G" not in state or len(state["G"]) != k:
             state["G"] = np.zeros(k)
         state.setdefault("eps", 1e-8)
+    if name in ["Torch Adam", "Torch Adagrad", "Torch SGD", "Torch Nesterov"]:
+        state.setdefault("torch_state", {})
     opt_configs[name] = state
 
 col_run, _ = st.columns([1, 3])
@@ -186,6 +198,22 @@ if run:
                         w_new, obj_val = opt_step_adam(df, w, lr, objective_fn, state)
                     elif name == "Adagrad":
                         w_new, obj_val = opt_step_adagrad(df, w, lr, objective_fn, state)
+                    elif name == "Torch Adam":
+                        w_new, obj_val, _ = optimizer_torch_adam(df, w, lr, objective_fn, state["torch_state"])
+                    elif name == "Torch Adagrad":
+                        w_new, obj_val, _ = optimizer_torch_adagrad(df, w, lr, objective_fn, state["torch_state"])
+                    elif name == "Torch SGD":
+                        w_new, obj_val, _ = optimizer_torch_sgd(df, w, lr, objective_fn, state["torch_state"])
+                    elif name == "Torch Nesterov":
+                        w_new, obj_val, _ = optimizer_torch_nesterov(df, w, lr, objective_fn, state["torch_state"])
+                    elif name == "SciPy BFGS":
+                        w_new, obj_val, _ = optimizer_scipy_bfgs(df, w, lr, objective_fn)
+                    elif name == "SciPy CG":
+                        w_new, obj_val, _ = optimizer_scipy_cg(df, w, lr, objective_fn)
+                    elif name == "SciPy Newton-CG":
+                        w_new, obj_val, _ = optimizer_scipy_newton_cg(df, w, lr, objective_fn)
+                    elif name == "SciPy Trust-NCG":
+                        w_new, obj_val, _ = optimizer_scipy_trust_ncg(df, w, lr, objective_fn)
                     else:
                         break
 

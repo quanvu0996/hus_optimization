@@ -65,7 +65,7 @@ all_opts = [
     "Nesterov accelerated",
     "Adam",
     "Adagrad",
-    "quadratic_program",
+    "SLSQP",
 ]
 selected_opt = st.sidebar.selectbox("Chọn thuật toán tối ưu", all_opts)
 
@@ -188,7 +188,7 @@ if run:
             mu = markowitz.mu
             Sigma = markowitz.Sigma
             
-            if selected_opt == "quadratic_program":
+            if selected_opt == "SLSQP":
                 def obj_fn(w):
                     return lam * np.dot(w.T, np.dot(Sigma, w)) - np.dot(mu, w)
                 
